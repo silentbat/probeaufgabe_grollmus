@@ -1,0 +1,161 @@
+﻿@page "/"
+@using BlazorApp.Data
+@inject BackendService BackendService
+
+<PageTitle>Probeaufgabe</PageTitle>
+
+<h1>Probeaufgabe - Jonathan Hansen - 20.02.2023</h1>
+
+@if (mode)
+{
+<div class="container-fluid">
+    <div class="row">
+        <div class="col">
+            @if (datapoints == null || datapoints.Length == 0)
+            {
+                <p>keine Geräte vorhanden</p>
+            }
+            else
+            {
+                <div class="container-fluid">
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-2 g-lg-3">
+                @foreach (var device in datapoints)
+                {
+                    <div class="col">
+                    <div class="card" style="min-width: 8rem;" @onclick="(() => {
+                            this.currentDevice = device;
+                            this.mode = false;
+                        })">
+                        <div class="card-body">
+                            <h5 class="card-title">@device.Name <span class="oi oi-trash" aria-hidden="true" @onclick:stopPropagation="true" @onclick="(async () => await RemoveDevice(device))" /></h5>
+                            <h6 class="card-subtitle mb-2 text-muted">@device.DeviceTypeId</h6>
+                            <p class="card-text">Failsafe: 
+                                @if(device.Failsafe)
+                                {
+                                    <span class="oi oi-check" aria-hidden="true" />
+                                } else {
+                                    <span class="oi oi-x" aria-hidden="true" />
+                                }
+                            </p>
+
+                        </div>
+                    </div>
+                    </div>
+                }
+                </div>
+                </div>
+            }
+        </div>
+        <div class="col">
+            @* <button class="btn btn-primary" @onclick="ClearData">Clear all data</button> TODO: REMOVE *@
+            <div class="file-input-btn btn btn-primary">
+                <InputFile OnChange="UploadJson" />
+                Geräte hinzufügen
+            </div>
+        </div>
+    </div>
+</div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col">
+                @*TODO: for proper navigation with shareable URLs, turn this into component *@
+                @if (currentDevice != null)
+                {
+                    <h1>@currentDevice.Name</h1>
+                    <h2 class="text-muted">@currentDevice.DeviceTypeId</h2>
+                    <table class="table">
+                        <tbody>
+                            <tr>
+                                <td>Failsafe</td>
+                                <td>@if(currentDevice.Failsafe){<span>Ja</span>}else{<span>Nein</span>}</td>
+                            </tr>
+                            <tr>
+                                <td>Temparatur</td>
+                                <td>@currentDevice.TempMin - @currentDevice.TempMax °C</td>
+                            </tr>
+                            <tr>
+                                <td>Einbauposition</td>
+                                <td>@currentDevice.InstallationPosition</td>
+                            </tr>
+                            <tr>
+                                <td>Geeignet für 19" Schrank</td>
+                                <td>@if(currentDevice.InsertInto19InchCabinet){<span>Ja</span>}else{<span>Nein</span>}</td>
+                            </tr>
+                            @if(currentDevice.TerminalElement)
+                            {
+                            <tr>
+                                <td>Terminal vorhanden</td>
+                                <td>@if(currentDevice.TerminalElement){<span>Ja</span>}else{<span>Nein</span>}</td>
+                            </tr>
+                            }
+                            @if(currentDevice.AdvancedEnvironmentalConditions)
+                            {
+                            <tr>
+                                <td>Erweiterte Umgebungsbedingungen</td>
+                                <td>@if(currentDevice.AdvancedEnvironmentalConditions){<span>Ja</span>}else{<span>Nein</span>}</td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+            <div class="col">
+                <button class="btn btn-primary" @onclick="()=>mode = true">zurück</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Device[]? datapoints;
+    private Device? currentDevice = null;
+
+    // detail or overview, this is a minimal example, we do not need proper navigation for this
+    private bool mode = true;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await this.Update();
+    }
+
+    private async Task Update()
+    {
+        datapoints = await BackendService.GetDataAsync();
+
+        if ( datapoints != null && datapoints.Length > 0 )
+        {
+            currentDevice = datapoints[0];
+        }
+        else
+        {
+            currentDevice = null;
+        }
+    }
+
+    private async Task ClearData()
+    {
+        await BackendService.ClearDataAsync();
+        await this.Update();
+    }
+
+    private async Task UploadJson(InputFileChangeEventArgs e)
+    {
+        if (e.File.ContentType == "application/json")
+        {
+            using (var sr = e.File.OpenReadStream())
+            {
+                await BackendService.AddJsonDataAsync(sr);
+            }
+        }
+
+        await this.Update();
+    }
+
+    private async Task RemoveDevice(Device d){
+        await BackendService.RemoveDeviceAsync(d);
+        await this.Update();
+    }
+}
